@@ -1,17 +1,74 @@
-import { StyleSheet, ScrollView } from 'react-native';
+import { StyleSheet, ScrollView, TouchableOpacity, Alert, View } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@/contexts/AuthContext';
+import { router } from 'expo-router';
+import { useState } from 'react';
 
 export default function IngredientsScreen() {
+  const { user, signOut } = useAuth();
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+
+  const handleLogout = () => {
+    setShowLogoutDialog(true);
+  };
+
+  const confirmLogout = async () => {
+    try {
+      await signOut();
+      router.replace('/auth/login');
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo cerrar la sesión');
+    } finally {
+      setShowLogoutDialog(false);
+    }
+  };
+
+  const cancelLogout = () => {
+    setShowLogoutDialog(false);
+  };
+
   return (
     <ThemedView style={styles.container}>
+      <ConfirmDialog
+        visible={showLogoutDialog}
+        title="Cerrar Sesión"
+        message={user?.name ? `¿Estás seguro que quieres cerrar sesión? (${user.name})` : '¿Estás seguro que quieres cerrar sesión?'}
+        onConfirm={confirmLogout}
+        onCancel={cancelLogout}
+        confirmText="Cerrar Sesión"
+        cancelText="Cancelar"
+        confirmStyle="destructive"
+      />
+      
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <ThemedView style={styles.header}>
+          {/* Botón de logout en la esquina superior derecha */}
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={24} color="#fff" />
+          </TouchableOpacity>
+          
           <Ionicons name="basket" size={48} color="#fff" />
           <ThemedText type="title" style={styles.title}>
             ¿Qué tienes en casa?
           </ThemedText>
+          
+          {/* Mostrar info del usuario si está logueado */}
+          {user && (
+            <View style={styles.userInfo}>
+              <Ionicons 
+                name={user.provider === 'guest' ? 'person-circle-outline' : 'person-circle'} 
+                size={20} 
+                color="#FFEBEE" 
+              />
+              <ThemedText style={styles.userText}>
+                {user.provider === 'guest' ? 'Modo Invitado' : user.name}
+              </ThemedText>
+            </View>
+          )}
+          
           <ThemedText type="subtitle" style={styles.subtitle}>
             Ingresa los ingredientes que tienes disponibles y descubre qué platillos peruanos puedes preparar
           </ThemedText>
@@ -62,6 +119,31 @@ const styles = StyleSheet.create({
     backgroundColor: '#D32F2F',
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
+    position: 'relative',
+  },
+  logoutButton: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 20,
+    padding: 8,
+    zIndex: 1,
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  userText: {
+    color: '#FFEBEE',
+    fontSize: 14,
+    fontWeight: '500',
   },
   title: {
     marginTop: 16,

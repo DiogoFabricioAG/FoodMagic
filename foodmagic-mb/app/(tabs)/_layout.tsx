@@ -1,15 +1,36 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
+import { Tabs, router } from 'expo-router';
+import React, { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
+  const { isAuthenticated, isLoading, user } = useAuth();
+  
+  console.log('🛡️ TabLayout render - isLoading:', isLoading, 'isAuthenticated:', isAuthenticated, 'user:', user?.name);
+  
+  // Si está cargando, mostrar loader
+  if (isLoading) {
+    console.log('⏳ TabLayout: Still loading...');
+    return null;
+  }
+  
+  // Si no está autenticado, no renderizar las tabs (pero no redirigir desde aquí)
+  if (!isAuthenticated) {
+    console.log('❌ TabLayout: Not authenticated, returning null');
+    return null;
+  }
+  
+  console.log('✅ TabLayout: User authenticated, rendering tabs');
+  
+  // En web usar la pantalla de ingredientes como inicial, en móvil usar camera
+  const initialRoute = Platform.OS === 'web' ? 'index' : 'camera';
   
   return (
     <Tabs
-      initialRouteName="camera"
+      initialRouteName={initialRoute}
       screenOptions={{
         tabBarActiveTintColor: '#D32F2F',
         tabBarInactiveTintColor: '#9E9E9E',

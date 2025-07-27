@@ -1,16 +1,40 @@
 import { StyleSheet, View, Alert, TouchableOpacity, TextInput, Modal } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
+import { useAuth } from '@/contexts/AuthContext';
+import { router } from 'expo-router';
 
 export default function CameraScreen() {
   const [isScanning, setIsScanning] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showManualInput, setShowManualInput] = useState(false);
   const [manualIngredients, setManualIngredients] = useState('');
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const { user, signOut } = useAuth();
+
+  const handleLogout = () => {
+    setShowLogoutDialog(true);
+  };
+
+  const confirmLogout = async () => {
+    try {
+      await signOut();
+      router.replace('/auth/login');
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo cerrar la sesión');
+    } finally {
+      setShowLogoutDialog(false);
+    }
+  };
+
+  const cancelLogout = () => {
+    setShowLogoutDialog(false);
+  };
 
   const handleManualList = () => {
     setShowManualInput(true);
@@ -131,9 +155,25 @@ export default function CameraScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      <ConfirmDialog
+        visible={showLogoutDialog}
+        title="Cerrar Sesión"
+        message={user?.name ? `¿Quieres cerrar sesión? (${user.name})` : '¿Quieres cerrar sesión?'}
+        onConfirm={confirmLogout}
+        onCancel={cancelLogout}
+        confirmText="Cerrar Sesión"
+        cancelText="Cancelar"
+        confirmStyle="destructive"
+      />
+      
       {/* Header con gradiente peruano */}
       <ThemedView style={styles.header}>
         <View style={styles.headerGradient}>
+          {/* Botón de logout en la esquina superior derecha */}
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={20} color="#fff" />
+          </TouchableOpacity>
+          
           <View style={styles.logoContainer}>
             <Ionicons name="restaurant" size={32} color="#fff" />
             <ThemedText type="title" style={styles.title}>
@@ -145,6 +185,21 @@ export default function CameraScreen() {
               <View style={styles.flagRed} />
             </View>
           </View>
+          
+          {/* Mostrar info del usuario */}
+          {user && (
+            <View style={styles.userInfo}>
+              <Ionicons 
+                name={user.provider === 'guest' ? 'person-circle-outline' : 'person-circle'} 
+                size={16} 
+                color="#FFEBEE" 
+              />
+              <ThemedText style={styles.userText}>
+                {user.provider === 'guest' ? 'Invitado' : user.name}
+              </ThemedText>
+            </View>
+          )}
+          
           <ThemedText type="subtitle" style={styles.subtitle}>
             Descubre la magia de la cocina peruana
           </ThemedText>
@@ -320,6 +375,16 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
     zIndex: 10, // Asegurar que esté por encima de otros elementos
+    position: 'relative',
+  },
+  logoutButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 16,
+    padding: 8,
+    zIndex: 20,
   },
   headerGradient: {
     alignItems: 'center',
@@ -358,6 +423,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     marginTop: 4,
+    fontWeight: '500',
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  userText: {
+    color: '#FFEBEE',
+    fontSize: 12,
     fontWeight: '500',
   },
   cameraSection: {

@@ -1,17 +1,74 @@
-import { StyleSheet, ScrollView } from 'react-native';
+import { StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@/contexts/AuthContext';
+import { router } from 'expo-router';
+import { useState } from 'react';
 
 export default function ExploreScreen() {
+  const { user, signOut } = useAuth();
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [logoutDialogMessage, setLogoutDialogMessage] = useState('');
+
+  const handleProfilePress = () => {
+    if (user?.provider === 'guest') {
+      setLogoutDialogMessage('Estás usando la app como invitado. ¿Quieres cerrar sesión?');
+    } else {
+      setLogoutDialogMessage(`Hola, ${user?.name || 'Usuario'}! ¿Quieres cerrar sesión?`);
+    }
+    setShowLogoutDialog(true);
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      router.replace('/auth/login');
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo cerrar la sesión');
+    } finally {
+      setShowLogoutDialog(false);
+    }
+  };
+
+  const cancelLogout = () => {
+    setShowLogoutDialog(false);
+  };
+
   return (
     <ThemedView style={styles.container}>
+      <ConfirmDialog
+        visible={showLogoutDialog}
+        title={user?.provider === 'guest' ? 'Modo Invitado' : `Hola, ${user?.name || 'Usuario'}!`}
+        message={logoutDialogMessage}
+        onConfirm={handleSignOut}
+        onCancel={cancelLogout}
+        confirmText="Cerrar Sesión"
+        cancelText="Cancelar"
+        confirmStyle="destructive"
+      />
+      
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <ThemedView style={styles.header}>
+          {/* Botón de perfil */}
+          <TouchableOpacity style={styles.profileButton} onPress={handleProfilePress}>
+            <Ionicons 
+              name={user?.provider === 'guest' ? 'person-circle-outline' : 'person-circle'} 
+              size={32} 
+              color="#fff" 
+            />
+          </TouchableOpacity>
+          
           <Ionicons name="compass" size={48} color="#FF6B35" />
           <ThemedText type="title" style={styles.title}>
             Explorar
           </ThemedText>
+          {user && (
+            <ThemedText style={styles.welcomeText}>
+              {user.provider === 'guest' ? 'Modo Invitado' : `¡Hola, ${user.name}!`}
+            </ThemedText>
+          )}
           <ThemedText type="subtitle" style={styles.subtitle}>
             Descubre la riqueza de la gastronomía peruana
           </ThemedText>
@@ -81,11 +138,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 30,
     backgroundColor: '#fff',
+    position: 'relative',
+  },
+  profileButton: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    zIndex: 1,
+    backgroundColor: 'rgba(255, 107, 53, 0.2)',
+    borderRadius: 20,
+    padding: 4,
   },
   title: {
     marginTop: 16,
     textAlign: 'center',
     color: '#1a1a1a',
+  },
+  welcomeText: {
+    fontSize: 14,
+    color: '#FF6B35',
+    fontWeight: '600',
+    marginTop: 4,
   },
   subtitle: {
     marginTop: 8,
