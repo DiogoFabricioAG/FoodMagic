@@ -9,7 +9,7 @@ export default function Index() {
 
   useEffect(() => {
     console.log('🔄 Index useEffect - isLoading:', isLoading, 'isAuthenticated:', isAuthenticated, 'user:', user?.name);
-    
+   
     if (!isLoading) {
       if (isAuthenticated) {
         // Usuario autenticado - ir a la app principal

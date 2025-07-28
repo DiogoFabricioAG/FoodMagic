@@ -8,6 +8,10 @@ import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
 import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
+import { processImageApi, suggestRecipesApi } from '../../utils/foodmagicApi';
+import { Platform } from 'react-native';
+import Webcam from "react-webcam";
+
 
 export default function CameraScreen() {
   const [isScanning, setIsScanning] = useState(false);
@@ -16,6 +20,27 @@ export default function CameraScreen() {
   const [manualIngredients, setManualIngredients] = useState('');
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const { user, signOut } = useAuth();
+  const [detectedIngredients, setDetectedIngredients] = useState<string[]>([]);
+  const [suggestedRecipes, setSuggestedRecipes] = useState<any[]>([]);
+  const [showWebcam, setShowWebcam] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showIngredientsModal, setShowIngredientsModal] = useState(false);
+  const [editableIngredients, setEditableIngredients] = useState<string>('');
+
+  const handleShowRecipes = async (ingredients: string[]) => {
+    try {
+      const recipes = await suggestRecipesApi(ingredients);
+      if (!recipes || (Array.isArray(recipes) && recipes.length === 0)) {
+        Alert.alert('Sin resultados', 'La IA no devolvió ninguna receta.');
+        return;
+      }
+      setSuggestedRecipes(recipes);
+      setShowSuccessModal(true); // Mostrar modal bonito
+      // Navega cuando el usuario presione "Aceptar" en el modal
+    } catch (error) {
+      Alert.alert('Error', 'No se pudieron obtener las recetas.');
+    }
+  };
 
   const handleLogout = () => {
     setShowLogoutDialog(true);
@@ -43,33 +68,45 @@ export default function CameraScreen() {
   const processManualIngredients = () => {
     if (manualIngredients.trim()) {
       const ingredientsList = manualIngredients.split(',').map(item => item.trim()).filter(item => item);
-      Alert.alert(
-        "🎉 ¡Ingredientes registrados!",
-        `He registrado: ${ingredientsList.join(', ')}. ¿Quieres ver las recetas sugeridas?`,
-        [
-          { text: "Ver Recetas", onPress: () => console.log("Navegando a recetas...") },
-          { text: "Editar lista", onPress: () => setShowManualInput(true) },
-          { text: "Cerrar", style: "cancel" }
-        ]
-      );
-      setShowManualInput(false);
+      setDetectedIngredients(ingredientsList);
+      setShowManualInput(false); // ⬅️ Cierra el modal ANTES de llamar a la IA
       setManualIngredients('');
+      handleShowRecipes(ingredientsList);
+      setTimeout(async () => {
+        try {
+          const recipes = await suggestRecipesApi(ingredientsList);
+          if (!recipes || (Array.isArray(recipes) && recipes.length === 0)) {
+            Alert.alert('Sin resultados', 'La IA no devolvió ninguna receta.');
+            return;
+          }
+          router.push({ pathname: '/(tabs)/recipes', params: { recipes: JSON.stringify(recipes) } });
+        } catch (error) {
+          Alert.alert('Error', 'No se pudieron obtener las recetas.');
+          console.error(error);
+        }
+      }, 300); // Espera 300ms para evitar que el modal bloquee la navegación
     } else {
       Alert.alert('Error', 'Por favor ingresa al menos un ingrediente');
     }
   };
 
   const handleTakePhoto = () => {
-    Alert.alert(
-      "Detectar Ingredientes",
-      "¿Qué quieres hacer?",
-      [
-        { text: "Tomar Foto", onPress: () => takePhoto() },
-        { text: "Elegir de Galería", onPress: () => pickFromGallery() },
-        { text: "Cancelar", style: "cancel" }
-      ]
-    );
+    if (Platform.OS === 'web') {
+      // Para web, abre el input file
+      document.getElementById('web-image-input')?.click();
+    } else {
+      Alert.alert(
+        "Detectar Ingredientes",
+        "¿Qué quieres hacer?",
+        [
+          { text: "Tomar Foto", onPress: () => takePhoto() },
+          { text: "Elegir de Galería", onPress: () => pickFromGallery() },
+          { text: "Cancelar", style: "cancel" }
+        ]
+      );
+    }
   };
+
 
   const takePhoto = async () => {
     try {
@@ -137,24 +174,186 @@ export default function CameraScreen() {
     }
   };
 
-  const analyzeImage = (imageUri: string) => {
-    // Aquí irá la lógica de análisis de imagen con IA
-    // Por ahora solo mostramos un mensaje simulado
-    setTimeout(() => {
+  const analyzeImage = async (imageUri: string) => {
+    setIsScanning(true);
+    try {
+      const ingredientesStr = await processImageApi(imageUri);
+      const ingredientes = ingredientesStr.split(',').map(i => i.trim()).filter(i => i);
+      setDetectedIngredients(ingredientes);
+      setIsScanning(false);
+      setEditableIngredients(ingredientes.join(', '));
+      setShowIngredientsModal(true);
+      if (!ingredientes || ingredientes.length === 0) {
+        Alert.alert('Sin resultados', 'No se detectaron ingredientes.');
+        return;
+      }
       Alert.alert(
         "🎉 ¡Ingredientes detectados!",
-        "He encontrado: tomates, cebolla, ajo, pollo. ¿Quieres ver las recetas sugeridas?",
+        `He encontrado: ${ingredientes.join(', ')}. ¿Quieres ver las recetas sugeridas?`,
         [
-          { text: "Ver Recetas", onPress: () => console.log("Navegando a recetas...") },
+          { text: "Ver Recetas", onPress: async () => {
+              try {
+                const recipes = await suggestRecipesApi(ingredientes);
+                if (!recipes || (Array.isArray(recipes) && recipes.length === 0)) {
+                  Alert.alert('Sin resultados', 'La IA no devolvió ninguna receta.');
+                  return;
+                }
+                router.push({ pathname: '/(tabs)/recipes', params: { recipes: JSON.stringify(recipes) } });
+              } catch (error) {
+                Alert.alert('Error', 'No se pudieron obtener las recetas.');
+                console.error(error);
+              }
+            }
+          },
           { text: "Tomar otra foto", onPress: () => setSelectedImage(null) },
           { text: "Cerrar", style: "cancel" }
         ]
       );
-    }, 2000);
+    } catch (error) {
+      setIsScanning(false);
+      Alert.alert('Error', 'No se pudo analizar la imagen.');
+      console.error(error);
+    }
   };
 
   return (
     <ThemedView style={styles.container}>
+      {Platform.OS === 'web' && (
+        <input
+          id="web-image-input"
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              const reader = new FileReader();
+              reader.onload = () => {
+                setSelectedImage(reader.result as string);
+                analyzeImage(reader.result as string);
+              };
+              reader.readAsDataURL(file);
+            }
+          }}
+        />
+      )}
+
+      <Modal visible={showSuccessModal} transparent animationType="fade">
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(211,47,47,0.15)' }}>
+          <View style={{
+            backgroundColor: '#fff',
+            borderRadius: 24,
+            padding: 32,
+            alignItems: 'center',
+            shadowColor: '#D32F2F',
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.2,
+            shadowRadius: 16,
+            elevation: 12,
+            minWidth: 280,
+          }}>
+            <Ionicons name="checkmark-circle" size={56} color="#D32F2F" />
+            <ThemedText style={{ fontSize: 22, fontWeight: 'bold', color: '#D32F2F', marginTop: 12 }}>
+              ¡Recetas registradas!
+            </ThemedText>
+            <ThemedText style={{ color: '#757575', marginTop: 8, marginBottom: 18, textAlign: 'center' }}>
+              Tus recetas sugeridas están listas 🎉
+            </ThemedText>
+            <TouchableOpacity
+              style={{
+                backgroundColor: '#D32F2F',
+                borderRadius: 12,
+                paddingVertical: 12,
+                paddingHorizontal: 32,
+                marginTop: 8,
+              }}
+              onPress={() => {
+                        setShowSuccessModal(false);
+                        router.push({ pathname: '/(tabs)/recipes', params: { recipes: JSON.stringify(suggestedRecipes) } });
+                      }}
+            >
+              <ThemedText style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Aceptar</ThemedText>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showIngredientsModal} transparent animationType="fade">
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(211,47,47,0.15)' }}>
+          <View style={{
+            backgroundColor: '#fff',
+            borderRadius: 24,
+            padding: 32,
+            alignItems: 'center',
+            shadowColor: '#D32F2F',
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.2,
+            shadowRadius: 16,
+            elevation: 12,
+            minWidth: 280,
+          }}>
+            <Ionicons name="nutrition" size={48} color="#D32F2F" />
+            <ThemedText style={{ fontSize: 20, fontWeight: 'bold', color: '#D32F2F', marginTop: 8 }}>
+              Ingredientes detectados
+            </ThemedText>
+            <ThemedText style={{ color: '#757575', marginTop: 8, marginBottom: 12, textAlign: 'center' }}>
+              Edita o agrega ingredientes separados por comas:
+            </ThemedText>
+            <TextInput
+              style={{
+                borderWidth: 2,
+                borderColor: '#FFCDD2',
+                borderRadius: 12,
+                padding: 12,
+                fontSize: 16,
+                color: '#424242',
+                backgroundColor: '#FAFAFA',
+                minWidth: 220,
+                marginBottom: 16,
+              }}
+              value={editableIngredients}
+              onChangeText={setEditableIngredients}
+              placeholder="Ej: tomate, cebolla, pollo"
+              multiline
+            />
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#D32F2F',
+                  borderRadius: 12,
+                  paddingVertical: 12,
+                  paddingHorizontal: 24,
+                }}
+                onPress={async () => {
+                  setShowIngredientsModal(false);
+                  const ingredientsList = editableIngredients.split(',').map(i => i.trim()).filter(i => i);
+                  await handleShowRecipes(ingredientsList);
+                }}
+              >
+                <ThemedText style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Confirmar</ThemedText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#fff',
+                  borderRadius: 12,
+                  borderWidth: 2,
+                  borderColor: '#FFCDD2',
+                  paddingVertical: 12,
+                  paddingHorizontal: 24,
+                }}
+                onPress={async () => {
+                          setShowIngredientsModal(false);
+                          const ingredientsList = editableIngredients.split(',').map(i => i.trim()).filter(i => i);
+                          await handleShowRecipes(ingredientsList);
+                        }}
+              >
+                <ThemedText style={{ color: '#D32F2F', fontWeight: 'bold', fontSize: 16 }}>Cancelar</ThemedText>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      
       <ConfirmDialog
         visible={showLogoutDialog}
         title="Cerrar Sesión"

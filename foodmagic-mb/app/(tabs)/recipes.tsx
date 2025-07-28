@@ -2,8 +2,12 @@ import { StyleSheet, ScrollView } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams } from 'expo-router';
 
 export default function RecipesScreen() {
+  const params = useLocalSearchParams();
+  const recipes = params.recipes ? JSON.parse(params.recipes as string) : [];
+  
   return (
     <ThemedView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
@@ -50,6 +54,29 @@ export default function RecipesScreen() {
               </ThemedText>
             </ThemedView>
           </ThemedView>
+          {recipes.length > 0 && (
+            <ThemedView style={styles.section}>
+              <ThemedText style={styles.sectionTitle}>
+                🧑‍🍳 Recetas sugeridas por IA
+              </ThemedText>
+              {recipes.map((receta: any, idx: number) => (
+                <ThemedView key={idx} style={{ marginBottom: 24 }}>
+                  <ThemedText style={{ fontWeight: 'bold', fontSize: 17 }}>
+                    {receta.nombre}
+                  </ThemedText>
+                  <ThemedText style={{ marginBottom: 8 }}>
+                    {receta.descripcion}
+                  </ThemedText>
+                  <ThemedText style={{ fontWeight: 'bold' }}>Ingredientes:</ThemedText>
+                  <ThemedText>{receta.ingredientes.join(', ')}</ThemedText>
+                  <ThemedText style={{ fontWeight: 'bold', marginTop: 8 }}>Pasos:</ThemedText>
+                  {receta.pasos.map((paso: string, i: number) => (
+                    <ThemedText key={i}>• {paso}</ThemedText>
+                  ))}
+                </ThemedView>
+              ))}
+            </ThemedView>
+          )}
         </ThemedView>
       </ScrollView>
     </ThemedView>
